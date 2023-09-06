@@ -1,6 +1,12 @@
 
 from PIL import Image, ImageSequence
 import torch
+import requests
+import torch
+import io
+import math
+import folder_paths
+
 
 
 class Example:
@@ -179,17 +185,126 @@ def tensor_to_gif(tensor, rows, columns, gif_filename, video_speed):
 
 
 
+class GifToSprite:
+    def __init__(self):
+      pass
+    @classmethod
+    def INPUT_TYPES(s):
+      return {
+            "required": {
+                "url_gif": ("STRING", {
+                    "multiline": False, 
+                    "default": "https://user-images.githubusercontent.com/14011726/94132137-7d4fc100-fe7c-11ea-8512-69f90cb65e48.gif"
+                }),
+            },
+        }
+
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "gif2sprite"
+    CATEGORY = "gif"
+
+
+    def gif2sprite(self, url_gif):
+
+      print (url_gif)
+
+      image = gif_to_spritesheet_tensor(url_gif)
+
+      return (image, { "ui": { "gif": image } })
+      
+
+
+
+
+def gif_to_spritesheet_tensor(url: str):
+    # Step 1: Download the gif
+    response = requests.get(url)
+    gif = Image.open(io.BytesIO(response.content))
+
+    # Step 2: Extract frames from the gif
+    frames = [frame.copy() for frame in ImageSequence.Iterator(gif)]
+    num_frames = len(frames)
+
+    # Step 3: Calculate rows and columns
+    # Try to find the smallest sprite size that allows all frames to fit
+    for sprite_size in range(1024, 0, -1):
+        cols = 1024 // sprite_size
+        rows = 1024 // sprite_size
+        if cols * rows >= num_frames:
+            break
+
+    sprite_sheet = Image.new("RGB", (1024, 1024), (255, 255, 255))
+
+    for i, frame in enumerate(frames):
+        row = i // cols
+        col = i % cols
+        resized_frame = frame.resize((sprite_size, sprite_size), Image.ANTIALIAS)
+        sprite_sheet.paste(resized_frame, (col * sprite_size, row * sprite_size))
+
+    # Step 4: Convert the sprite sheet into a tensor
+    tensor = torch.Tensor(list(sprite_sheet.getdata())).view(1, 1024, 1024, 3) / 255.0
+    return tensor
+
+
+
+
+
+class ShowGif:
+    def __init__(self):
+      self.output_dir = folder_paths.get_output_directory()
+    @classmethod
+    def INPUT_TYPES(s):
+      return {
+            "required": {
+               "image_use": ("IMAGE",),
+                "url_gif": ("STRING", {
+                    "multiline": False, 
+                    "default": "https://user-images.githubusercontent.com/14011726/94132137-7d4fc100-fe7c-11ea-8512-69f90cb65e48.gif"
+                }),
+            },
+        }
+
+
+    RETURN_TYPES = ()
+    FUNCTION = "showgif_function"
+    CATEGORY = "gif"
+
+    OUTPUT_NODE = True
+    def showgif_function(self, url_gif, image_use):
+
+      print (url_gif)
+
+      image = gif_to_spritesheet_tensor(url_gif)
+      results = []
+      print (self.output_dir, 'out dir')
+      results.append({
+              "filename": 'f2ee719c212126e8796c2431f36618b7.gif',
+              "subfolder": self.output_dir,
+               "type": "output"
+          })
+
+      return { "ui": { "images": results } }
+
+
+
+
+
 
 
 
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
-    "Example": Example, "Lucas": Lucas
+    "Example": Example, "Lucas": Lucas, "GifToSprite": GifToSprite, "ShowGif": ShowGif,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "Example": "Example Node",
-    "Lucas": "Lucas Node"
+    "Lucas": "Lucas Node",
+    "GifToSprite":"GifToSprite",
+    "ShowGif":"ShowGif",
+
+    
 }
