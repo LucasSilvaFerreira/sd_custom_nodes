@@ -1,3 +1,4 @@
+#%%writefile /content/ComfyUI/custom_nodes/example_node.py
 
 from PIL import Image, ImageSequence
 import torch
@@ -15,12 +16,12 @@ class Example:
 
     Class methods
     -------------
-    INPUT_TYPES (dict): 
+    INPUT_TYPES (dict):
         Tell the main program input parameters of nodes.
 
     Attributes
     ----------
-    RETURN_TYPES (`tuple`): 
+    RETURN_TYPES (`tuple`):
         The type of each element in the output tulple.
     RETURN_NAMES (`tuple`):
         Optional: The name of each output in the output tulple.
@@ -38,7 +39,7 @@ class Example:
     """
     def __init__(self):
         pass
-    
+
     @classmethod
     def INPUT_TYPES(s):
         """
@@ -59,7 +60,7 @@ class Example:
             "required": {
                 "image": ("IMAGE",),
                 "int_field": ("INT", {
-                    "default": 0, 
+                    "default": 0,
                     "min": 0, #Minimum value
                     "max": 4096, #Maximum value
                     "step": 64, #Slider's step
@@ -99,26 +100,27 @@ class Example:
 
 class Lucas:
     def __init__(self):
-      pass
+      self.output_dir = folder_paths.get_output_directory()
+      self.counter_i = 0
     @classmethod
     def INPUT_TYPES(s):
       return {
             "required": {
                 "image": ("IMAGE",),
                 "columns": ("INT", {
-                    "default": 1, 
+                    "default": 1,
                     "min": 1, #Minimum value
                     "step": 1, #Slider's step
                     "display": "number" # Cosmetic only: display as "number" or "slider"
                 }),
                   "rows": ("INT", {
-                    "default": 1, 
+                    "default": 1,
                     "min": 1, #Minimum value
                     "step": 1, #Slider's step
                     "display": "number" # Cosmetic only: display as "number" or "slider"
                 }),
                     "video_speed": ("INT", {
-                    "default": 200, 
+                    "default": 200,
                     "min": 1, #Minimum value
                     "max": 1000, #Minimum value
                     "step": 1, #Slider's step
@@ -129,19 +131,35 @@ class Lucas:
         }
 
 
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = ("IMAGE", "STRING")
     FUNCTION = "to_gif"
     CATEGORY = "gif"
 
+    OUTPUT_NODE = True
+
+
+
+
+
 
     def to_gif(self, image, columns, rows, video_speed):
+      self.counter_i +=1
       #print (image)
       print (columns, rows)
       print (image.shape)
-      tensor_to_gif(image, rows, columns, 'output.gif', video_speed)
 
-      return (image,)
-      
+      f_name = f'{str(self.output_dir)}/{str(self.counter_i)}_output.gif'
+      tensor_to_gif(image, rows, columns,f_name , video_speed)
+      results = []
+      results.append({
+              "filename": '{str(self.counter_i)}_output.gif',
+              "subfolder": self.output_dir ,
+                "type": "output"
+          })
+
+      return (image, f_name)
+
+
 
 
 
@@ -149,28 +167,28 @@ class Lucas:
 def tensor_to_gif(tensor, rows, columns, gif_filename, video_speed):
     """
     Convert a tensor of shape (1, H, W, 3) to a gif.
-    
+
     Parameters:
     tensor: The input tensor (should have shape [1, H, W, 3]).
     rows: Number of rows to split the image.
     columns: Number of columns to split the image.
     gif_filename: The output filename for the gif.
     """
-    
+
 
 
     tensor = (tensor * 255).byte()
-    
+
     # Step 1: Convert tensor to numpy and then to PIL Image
     numpy_image = tensor.squeeze(0).numpy()  # Remove the batch dimension
     pil_image = Image.fromarray(numpy_image, 'RGB')
-    
+
     # Step 2: Split the image using rows and columns to create a sequence
     width, height = pil_image.size
     frame_width = width // columns
     frame_height = height // rows
     frames = []
-    
+
     for i in range(rows):
         for j in range(columns):
             left = j * frame_width
@@ -179,7 +197,7 @@ def tensor_to_gif(tensor, rows, columns, gif_filename, video_speed):
             lower = upper + frame_height
             frame = pil_image.crop((left, upper, right, lower))
             frames.append(frame)
-    
+
     # Step 3: Create GIF using the sequence
     frames[0].save(gif_filename, save_all=True, append_images=frames[1:], duration=video_speed, loop=0)
 
@@ -193,7 +211,7 @@ class GifToSprite:
       return {
             "required": {
                 "url_gif": ("STRING", {
-                    "multiline": False, 
+                    "multiline": False,
                     "default": "https://user-images.githubusercontent.com/14011726/94132137-7d4fc100-fe7c-11ea-8512-69f90cb65e48.gif"
                 }),
             },
@@ -211,8 +229,8 @@ class GifToSprite:
 
       image = gif_to_spritesheet_tensor(url_gif)
 
-      return (image, { "ui": { "gif": image } })
-      
+      return (image,)
+
 
 
 
@@ -257,10 +275,9 @@ class ShowGif:
     def INPUT_TYPES(s):
       return {
             "required": {
-               "image_use": ("IMAGE",),
-                "url_gif": ("STRING", {
-                    "multiline": False, 
-                    "default": "https://user-images.githubusercontent.com/14011726/94132137-7d4fc100-fe7c-11ea-8512-69f90cb65e48.gif"
+                "gif_path": ("STRING", {
+                    "multiline": False,
+                    "default": ""
                 }),
             },
         }
@@ -271,17 +288,14 @@ class ShowGif:
     CATEGORY = "gif"
 
     OUTPUT_NODE = True
-    def showgif_function(self, url_gif, image_use):
-
-      print (url_gif)
-
-      image = gif_to_spritesheet_tensor(url_gif)
+    def showgif_function(self, gif_path):
+      name = gif_path.split('/')[-1]
+      print ('showing')
       results = []
-      print (self.output_dir, 'out dir')
       results.append({
-              "filename": 'f2ee719c212126e8796c2431f36618b7.gif',
+              "filename": name,
               "subfolder": self.output_dir,
-               "type": "output"
+              "type": "output"
           })
 
       return { "ui": { "images": results } }
@@ -306,5 +320,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GifToSprite":"GifToSprite",
     "ShowGif":"ShowGif",
 
-    
+
 }
